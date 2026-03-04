@@ -1,0 +1,52 @@
+# Stock Universe Configuration
+
+universes:
+  default:
+    # Large cap tech stocks
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - META
+    - NVDA
+    - TSLA
+    
+  sp500_liquid:
+    # Highly liquid S&P 500 stocks
+    - SPY   # S&P 500 ETF
+    - QQQ   # NASDAQ 100 ETF
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - NVDA
+    - TSLA
+    - META
+    - JPM
+    - V
+    - WMT
+    - DIS
+    - NFLX
+    - AMD
+    - INTC
+  
+  swing_candidates:
+    # Good swing trading candidates
+    - AAPL
+    - MSFT
+    - AMD
+    - NVDA
+    - TSLA
+    - BA
+    - F
+    - GE
+    
+  etfs:
+    # Major ETFs
+    - SPY   # S&P 500
+    - QQQ   # NASDAQ 100
+    - IWM   # Russell 2000
+    - DIA   # Dow Jones
+    - XLF   # Financials
+    - XLE   # Energy
+    - XLK   # Technology

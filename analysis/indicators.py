@@ -411,3 +411,39 @@ class TechnicalIndicators:
             factors += 1
         
         return abs(score) if factors > 0 else 0.0
+
+
+# ==================== Convenience Functions ====================
+# Standalone function wrappers for easy imports
+
+_indicator_instance = TechnicalIndicators()
+
+
+def calculate_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Calculate RSI indicator."""
+    return _indicator_instance.add_rsi(df, period)
+
+
+def calculate_sma(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
+    """Calculate Simple Moving Average."""
+    return _indicator_instance.add_moving_averages(df, sma_periods=[period])
+
+
+def calculate_ema(df: pd.DataFrame, period: int = 12) -> pd.DataFrame:
+    """Calculate Exponential Moving Average."""
+    return _indicator_instance.add_moving_averages(df, ema_periods=[period])
+
+
+def calculate_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+    """Calculate MACD indicator."""
+    return _indicator_instance.add_macd(df, fast, slow, signal)
+
+
+def calculate_bollinger_bands(df: pd.DataFrame, period: int = 20, std_dev: float = 2.0) -> pd.DataFrame:
+    """Calculate Bollinger Bands."""
+    return _indicator_instance.add_bollinger_bands(df, period, std_dev)
+
+
+def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Calculate Average True Range."""
+    return _indicator_instance.add_atr(df, period)

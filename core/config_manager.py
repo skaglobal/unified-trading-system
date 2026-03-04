@@ -95,6 +95,7 @@ class Config(BaseSettings):
         env_file = ".env"
         env_nested_delimiter = "__"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields from .env
 
 
 class ConfigManager:

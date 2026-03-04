@@ -1,0 +1,43 @@
+# Strategy Configurations
+
+strategies:
+  swing_trading:
+    enabled: true
+    timeframe: "daily"
+    holding_period_days: "3-10"
+    entry_criteria:
+      - regime_filter: "risk_on"
+      - trend: "price > ma200"
+      - pullback: "near_ma20_or_ma50"
+      - confirmation: "volume_breakout"
+    exit_criteria:
+      - trend_invalidation: "close < ma200"
+      - regime_flip: "risk_off"
+      - time_stop_days: 15
+  
+  intraday_momentum:
+    enabled: true
+    timeframe: "5min"
+    holding_period_minutes: "30-240"
+    entry_criteria:
+      - opening_range_breakout: true
+      - volume_surge: "> 2x"
+      - vwap_position: "above"
+    exit_criteria:
+      - vwap_cross: "below"
+      - time_stop_minutes: 240
+      - trailing_stop_pct: 2.0
+  
+  scalping:
+    enabled: false
+    timeframe: "1min"
+    holding_period_minutes: "1-15"
+    max_trades_per_day: 5
+    entry_criteria:
+      - momentum: "strong"
+      - spread: "< 0.5%"
+      - liquidity: "high"
+    exit_criteria:
+      - profit_target_pct: 0.5
+      - stop_loss_pct: 0.3
+      - time_stop_minutes: 15

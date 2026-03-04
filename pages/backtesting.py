@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from backtesting.backtest_engine import BacktestEngine
-from strategies.swing_strategy import SwingStrategy
+from strategies.swing_strategy import SwingTradingStrategy
 from connectors.yahoo_finance import YahooFinanceConnector
 from core.logging_manager import get_logger
 
@@ -93,7 +93,7 @@ def run_backtest(strategy_name: str, symbols_str: str, start_date, end_date, ini
             
             # Initialize strategy
             if strategy_name == "Swing Trading":
-                strategy = SwingStrategy()
+                strategy = SwingTradingStrategy()
             else:
                 st.error("Strategy not implemented yet")
                 return

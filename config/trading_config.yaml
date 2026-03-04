@@ -1,0 +1,29 @@
+# Trading Configuration
+# Adjust these parameters based on your strategy
+
+# Risk Management
+risk:
+  max_position_size_pct: 2.0      # % of account per position
+  max_total_risk_pct: 10.0        # % of account total risk
+  max_positions: 10               # Maximum concurrent positions
+  max_daily_loss_pct: 3.0         # Daily circuit breaker
+  
+  # Drawdown protection (3-tier)
+  pause_trading_at_pct: 10.0      # Pause at 10% drawdown
+  reduce_size_at_pct: 15.0        # Reduce position size at 15%
+  stop_trading_at_pct: 20.0       # Full stop at 20%
+
+# Position Sizing
+position_sizing:
+  method: "atr"                   # atr | fixed | kelly
+  atr_multiplier: 2.0             # Stop distance in ATR
+  min_shares: 1
+  max_shares: 1000
+
+# Market Hours
+market:
+  timezone: "America/New_York"
+  pre_market_start: "04:00"
+  market_open: "09:30"
+  market_close: "16:00"
+  after_hours_end: "20:00"
