@@ -99,6 +99,9 @@ with st.sidebar:
     st.caption("Unified Trading System v1.0")
     st.caption("Phase 1: Foundation")
 
+# Import page modules
+from pages import market_overview, scanner, backtesting, portfolio
+
 # Main content area
 if "🏠 Home" in page:
     st.markdown('<h1 class="main-header">📈 Unified Trading System</h1>', unsafe_allow_html=True)
@@ -191,31 +194,14 @@ if "🏠 Home" in page:
     logger.info("Dashboard home page loaded")
 
 elif "📊 Market Overview" in page:
-    st.title("📊 Market Overview")
-    st.info("**Coming in Phase 2**: Market regime detection, sector performance, top movers")
-    st.markdown("""
-    This page will show:
-    - Current market regime (Risk On/Off)
-    - SPY, QQQ, IWM status
-    - Sector performance heatmap
-    - Top gainers/losers
-    - Market breadth indicators
-    """)
+    market_overview.render()
 
 elif "🔍 Stock Scanner" in page:
-    st.title("🔍 Stock Scanner")
-    st.info("**Coming in Phase 3**: Swing, Intraday, Pre-market, and IEI scanners")
-    
-    scanner_type = st.selectbox(
-        "Select Scanner",
-        ["Swing Setups", "Intraday Momentum", "Pre-market Movers", "IEI Top 10"]
-    )
-    
-    st.markdown("Scanner functionality will be implemented in Phase 3")
+    scanner.render()
 
 elif "📈 Live Monitoring" in page:
     st.title("📈 Live Monitoring")
-    st.info("**Coming in Phase 4**: Real-time signal monitoring and position tracking")
+    st.info("**Coming Soon**: Real-time signal monitoring and position tracking")
     st.markdown("""
     This page will show:
     - Active watchlist
@@ -227,7 +213,7 @@ elif "📈 Live Monitoring" in page:
 
 elif "⚙️ Strategy Manager" in page:
     st.title("⚙️ Strategy Manager")
-    st.info("**Coming in Phase 3**: Enable/disable strategies and configure parameters")
+    st.info("**Coming Soon**: Enable/disable strategies and configure parameters")
     
     st.subheader("Available Strategies")
     
@@ -240,28 +226,10 @@ elif "⚙️ Strategy Manager" in page:
             st.checkbox("Enable", key=f"enable_{strategy}", disabled=True)
 
 elif "💼 Portfolio" in page:
-    st.title("💼 Portfolio")
-    st.info("**Coming in Phase 4**: Position tracking and performance analytics")
-    st.markdown("""
-    This page will show:
-    - Current positions with P&L
-    - Trade history
-    - Performance charts
-    - Win rate, Sharpe ratio
-    - Drawdown analysis
-    """)
+    portfolio.render()
 
 elif "📉 Backtesting" in page:
-    st.title("📉 Backtesting")
-    st.info("**Coming in Phase 5**: Strategy backtesting on historical data")
-    
-    st.subheader("Backtest Configuration")
-    strategy = st.selectbox("Strategy", ["Swing Trading", "Intraday Momentum"])
-    start_date = st.date_input("Start Date")
-    end_date = st.date_input("End Date")
-    
-    if st.button("Run Backtest", disabled=True):
-        st.success("Backtest will run in Phase 5")
+    backtesting.render()
 
 elif "🤖 AI Insights" in page:
     st.title("🤖 AI Insights")

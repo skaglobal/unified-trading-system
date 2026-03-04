@@ -1,0 +1,3 @@
+"""
+Dashboard pages module
+"""
