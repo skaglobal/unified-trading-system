@@ -6,7 +6,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 
-from connectors.ibkr_connector import IBKRConnector
 from core.logging_manager import get_logger
 from core.config_manager import get_config_manager
 
@@ -28,6 +27,9 @@ def render():
     
     # Connect to IBKR  
     try:
+        # Lazy import to avoid event loop issues
+        from connectors.ibkr_connector import IBKRConnector
+        
         with st.spinner("Connecting to IBKR..."):
             ibkr = IBKRConnector()
             

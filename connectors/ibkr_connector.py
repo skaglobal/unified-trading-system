@@ -11,6 +11,15 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+
+# Ensure event loop exists for ib_insync (needed for Streamlit compatibility)
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    # Create new event loop if none exists
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 from ib_insync import IB, Contract, LimitOrder, MarketOrder, Order, Position, Stock, Trade, util
 
 from core.config_manager import ConfigManager
