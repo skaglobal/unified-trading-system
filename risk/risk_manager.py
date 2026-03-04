@@ -50,7 +50,10 @@ class RiskManager:
         self,
         limits: Optional[RiskLimits] = None,
         config: Optional[ConfigManager] = None,
-        logger: Optional[LoggingManager] = None
+        logger: Optional[LoggingManager] = None,
+        max_position_pct: Optional[float] = None,
+        max_portfolio_risk_pct: Optional[float] = None,
+        max_positions: Optional[int] = None
     ):
         """
         Initialize risk manager.
@@ -59,10 +62,23 @@ class RiskManager:
             limits: Risk limits configuration
             config: Configuration manager
             logger: Logging manager
+            max_position_pct: Override for max position %
+            max_portfolio_risk_pct: Override for max portfolio risk %
+            max_positions: Override for max positions
         """
         self.limits = limits or RiskLimits()
         self.config = config or ConfigManager()
         self.logger = logger or LoggingManager()
+        
+        # Apply overrides
+        if max_position_pct is not None:
+            self.limits.max_position_size_pct = max_position_pct
+            self.max_position_pct = max_position_pct  # For backwards compatibility
+        if max_portfolio_risk_pct is not None:
+            self.limits.max_portfolio_risk_pct = max_portfolio_risk_pct  
+            self.max_portfolio_risk_pct = max_portfolio_risk_pct  # For backwards compatibility
+        if max_positions is not None:
+            self.limits.max_positions = max_positions
         
         # Track daily statistics
         self.daily_pnl = 0.0
@@ -339,3 +355,84 @@ class RiskManager:
         self.daily_pnl = 0.0
         self.daily_trades = 0
         self.logger.info("Daily risk statistics reset")
+    
+    # ==================== Simplified API Methods ====================
+    
+    def can_take_more_risk(self, account_value: float, current_risk: float) -> bool:
+        """
+        Check if more risk can be taken based on portfolio limits.
+        
+        Args:
+            account_value: Total account value
+            current_risk: Current risk amount in dollars
+            
+        Returns:
+            True if more risk can be taken
+        """
+        current_risk_pct = (current_risk / account_value * 100) if account_value > 0 else 0
+        return current_risk_pct < self.limits.max_portfolio_risk_pct
+    
+    def can_open_position(self, current_positions: int) -> bool:
+        """
+        Check if a new position can be opened based on position count.
+        
+        Args:
+            current_positions: Number of current positions
+            
+        Returns:
+            True if new position can be opened
+        """
+        return current_positions < self.limits.max_positions
+    
+    def calculate_risk_amount(self, entry_price: float, stop_loss: float, shares: int) -> float:
+        """
+        Calculate risk amount for a position.
+        
+        Args:
+            entry_price: Entry price per share
+            stop_loss: Stop loss price
+            shares: Number of shares
+            
+        Returns:
+            Risk amount in dollars
+        """
+        risk_per_share = abs(entry_price - stop_loss)
+        return risk_per_share * shares
+
+
+# ==================== Convenience Functions ====================
+
+def calculate_position_size(
+    account_value: float,
+    risk_per_trade_pct: float,
+    entry_price: float,
+    stop_loss: float
+) -> int:
+    """
+    Calculate position size based on risk.
+    
+    Args:
+        account_value: Total account value
+        risk_per_trade_pct: Risk per trade as % of account
+        entry_price: Entry price per share
+        stop_loss: Stop loss price
+        
+    Returns:
+        Number of shares to trade
+    """
+    if entry_price <= 0 or stop_loss <= 0:
+        return 0
+    
+    # Risk amount in dollars
+    risk_amount = account_value * (risk_per_trade_pct / 100)
+    
+    # Risk per share
+    risk_per_share = abs(entry_price - stop_loss)
+    
+    if risk_per_share <= 0:
+        return 0
+    
+    # Calculate shares
+    shares = int(risk_amount / risk_per_share)
+    
+    return shares

@@ -230,6 +230,39 @@ class TechnicalIndicators:
         
         return df
     
+    # ==================== Individual Indicator Methods ====================
+    
+    def add_rsi(self, df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+        """Add RSI indicator."""
+        df = df.copy()
+        df[f'RSI_{period}'] = self.rsi(df['Close'], period)
+        return df
+    
+    def add_macd(self, df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+        """Add MACD indicator."""
+        df = df.copy()
+        macd_line, signal_line, histogram = self.macd(df['Close'], fast, slow, signal)
+        df['MACD'] = macd_line
+        df['MACD_Signal'] = signal_line  
+        df['MACD_Hist'] = histogram
+        return df
+    
+    def add_atr(self, df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+        """Add ATR indicator."""
+        df = df.copy()
+        df[f'ATR_{period}'] = self.atr(df, period)
+        return df
+    
+    def add_bollinger_bands(self, df: pd.DataFrame, period: int = 20, std_dev: float = 2.0) -> pd.DataFrame:
+        """Add Bollinger Bands."""
+        df = df.copy()
+        upper, middle, lower = self.bollinger_bands(df, period, std_dev)
+        df['BB_Upper'] = upper
+        df['BB_Middle'] = middle
+        df['BB_Lower'] = lower
+        df['BB_Width'] = (upper - lower) / middle * 100
+        return df
+    
     # ==================== Combined Analysis ====================
     
     def add_all_indicators(self, df: pd.DataFrame) -> pd.DataFrame:

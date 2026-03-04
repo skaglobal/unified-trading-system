@@ -357,3 +357,54 @@ class YahooFinanceConnector:
         # In production, you might want to use a different API for symbol search
         self.logger.warning("Symbol search not fully implemented with yfinance")
         return []
+    
+    def get_historical_data(
+        self,
+        symbol: str,
+        days: Optional[int] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> pd.DataFrame:
+        """
+        Get historical data with flexible date parameters.
+        
+        Args:
+            symbol: Stock ticker symbol
+            days: Number of days of history (alternative to start/end dates)
+            start_date: Start date
+            end_date: End date
+            
+        Returns:
+            DataFrame with OHLCV data
+        """
+        # Calculate date range if days is provided
+        if days:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+        
+        # Use fetch_historical_data
+        df = self.fetch_historical_data(
+            symbol=symbol,
+            start=start_date,
+            end=end_date,
+            interval='1d'
+        )
+        
+        if df is None or df.empty:
+            return pd.DataFrame()
+        
+        # Reset index to make date a column
+        df = df.reset_index()
+        
+        # Rename columns to lowercase for consistency
+        df = df.rename(columns={
+            'Date': 'date',
+            'Open': 'open',
+            'High': 'high',
+            'Low': 'low',
+            'Close': 'close',
+            'Volume': 'volume',
+            'Symbol': 'symbol'
+        })
+        
+        return df
