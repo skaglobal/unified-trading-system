@@ -358,6 +358,123 @@ class YahooFinanceConnector:
         self.logger.warning("Symbol search not fully implemented with yfinance")
         return []
     
+    def get_put_call_ratio(
+        self,
+        symbol: str,
+        max_expiries: int = 4
+    ) -> dict:
+        """
+        Calculate Put/Call Ratio from options chain data.
+
+        Aggregates volume and open interest across the nearest `max_expiries`
+        expiration dates.
+
+        Args:
+            symbol:       Stock ticker symbol
+            max_expiries: Number of near-term expiry dates to include
+
+        Returns:
+            dict with keys:
+                pcr_volume   – puts volume / calls volume
+                pcr_oi       – puts OI / calls OI
+                total_put_vol, total_call_vol
+                total_put_oi,  total_call_oi
+                expiries_used  – list of expiry dates included
+                signal         – 'bullish' | 'bearish' | 'neutral'
+                signal_detail  – human-readable explanation
+        """
+        try:
+            self.rate_limiter.wait_if_needed()
+            ticker = yf.Ticker(symbol)
+            expiries = ticker.options  # tuple of date strings
+
+            if not expiries:
+                return {"error": "No options data available for this symbol"}
+
+            expiries_to_use = list(expiries[:max_expiries])
+
+            total_put_vol  = 0
+            total_call_vol = 0
+            total_put_oi   = 0
+            total_call_oi  = 0
+            expiry_rows    = []
+
+            for exp in expiries_to_use:
+                try:
+                    chain = ticker.option_chain(exp)
+                    calls = chain.calls
+                    puts  = chain.puts
+
+                    put_vol  = int(puts["volume"].fillna(0).sum())
+                    call_vol = int(calls["volume"].fillna(0).sum())
+                    put_oi   = int(puts["openInterest"].fillna(0).sum())
+                    call_oi  = int(calls["openInterest"].fillna(0).sum())
+
+                    total_put_vol  += put_vol
+                    total_call_vol += call_vol
+                    total_put_oi   += put_oi
+                    total_call_oi  += call_oi
+
+                    exp_pcr_vol = round(put_vol  / call_vol,  3) if call_vol  else None
+                    exp_pcr_oi  = round(put_oi   / call_oi,   3) if call_oi   else None
+
+                    expiry_rows.append({
+                        "Expiry":     exp,
+                        "Put Vol":    put_vol,
+                        "Call Vol":   call_vol,
+                        "PCR (Vol)":  exp_pcr_vol,
+                        "Put OI":     put_oi,
+                        "Call OI":    call_oi,
+                        "PCR (OI)":   exp_pcr_oi,
+                    })
+                except Exception:
+                    continue
+
+            pcr_volume = round(total_put_vol / total_call_vol, 3) if total_call_vol else None
+            pcr_oi     = round(total_put_oi  / total_call_oi,  3) if total_call_oi  else None
+
+            # Interpret using volume PCR as primary, OI as secondary
+            primary = pcr_volume if pcr_volume is not None else pcr_oi
+            if primary is None:
+                signal, detail = "neutral", "Insufficient options data"
+            elif primary > 1.2:
+                signal = "bearish"
+                detail = (f"PCR {primary:.2f} > 1.2 — heavy put buying signals "
+                          "bearish sentiment; favour short setups")
+            elif primary > 1.0:
+                signal = "bearish"
+                detail = (f"PCR {primary:.2f} > 1.0 — moderately elevated puts; "
+                          "lean short or reduce long size")
+            elif primary < 0.6:
+                signal = "bullish"
+                detail = (f"PCR {primary:.2f} < 0.6 — heavy call buying signals "
+                          "bullish sentiment; favour long setups")
+            elif primary < 0.8:
+                signal = "bullish"
+                detail = (f"PCR {primary:.2f} — more calls than puts; "
+                          "mild bullish bias, long setups preferred")
+            else:
+                signal = "neutral"
+                detail = (f"PCR {primary:.2f} — balanced put/call activity; "
+                          "no strong directional edge from options")
+
+            return {
+                "pcr_volume":    pcr_volume,
+                "pcr_oi":        pcr_oi,
+                "total_put_vol":  total_put_vol,
+                "total_call_vol": total_call_vol,
+                "total_put_oi":   total_put_oi,
+                "total_call_oi":  total_call_oi,
+                "expiries_used":  expiries_to_use,
+                "expiry_breakdown": expiry_rows,
+                "signal":         signal,
+                "signal_detail":  detail,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error fetching options data for {symbol}: {e}")
+            return {"error": str(e)}
+
     def get_historical_data(
         self,
         symbol: str,

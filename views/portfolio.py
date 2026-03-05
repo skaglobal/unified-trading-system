@@ -113,7 +113,7 @@ def display_positions(positions: list, ibkr: IBKRConnector):
         
         # Positions table
         df = pd.DataFrame(positions_data)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
         
         # P&L chart
         st.subheader("📈 P&L by Position")
@@ -138,7 +138,7 @@ def display_positions(positions: list, ibkr: IBKRConnector):
             showlegend=False
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 
 def display_account_summary(ibkr: IBKRConnector):
@@ -220,6 +220,6 @@ def display_mock_portfolio():
     
     # Table
     df = pd.DataFrame(mock_positions)
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width='stretch')
     
     st.info("💡 Connect to IBKR to see real positions")

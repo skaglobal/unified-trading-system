@@ -12,6 +12,7 @@ sys.path.insert(0, str(project_root))
 
 from core.config_manager import get_config_manager
 from core.logging_manager import get_logging_manager, get_logger
+from connectors.ibkr_connector import IBKRConnector
 
 # Page config
 st.set_page_config(
@@ -29,6 +30,13 @@ logging_mgr = get_logging_manager(
     log_to_file=config.config.log_to_file
 )
 logger = get_logger("dashboard.main")
+
+# Initialize IBKR connector (once per session)
+if 'ibkr' not in st.session_state:
+    st.session_state.ibkr = IBKRConnector(config=config, logger=logging_mgr)
+    st.session_state.ibkr_connected = False
+
+ibkr = st.session_state.ibkr
 
 # Custom CSS
 st.markdown("""
@@ -73,8 +81,9 @@ with st.sidebar:
         "Select Page",
         [
             "🏠 Home",
-            "📊 Market Overview",  
+            "📊 Market Overview",
             "🔍 Stock Scanner",
+            "📐 ATR Analysis",
             "📈 Live Monitoring",
             "⚙️ Strategy Manager",
             "💼 Portfolio",
@@ -100,10 +109,10 @@ with st.sidebar:
     st.caption("Phase 1: Foundation")
 
 # Import page modules
-from pages import market_overview, scanner, backtesting, portfolio
+from views import market_overview, scanner, backtesting, portfolio, atr_analysis, live_monitoring
 
 # Main content area
-if "🏠 Home" in page:
+if "Home" in page:
     st.markdown('<h1 class="main-header">📈 Unified Trading System</h1>', unsafe_allow_html=True)
     
     # Status box
@@ -179,8 +188,13 @@ if "🏠 Home" in page:
         st.info("**Configuration**\n✅ Loaded")
     
     with status_col2:
-        # Check IBKR connection (placeholder)
-        st.warning("**IBKR Connection**\n⚠️ Not connected")
+        # Check IBKR connection status
+        if ibkr.is_connected():
+            st.session_state.ibkr_connected = True
+            st.success("**IBKR Connection**\n✅ Connected")
+        else:
+            st.session_state.ibkr_connected = False
+            st.warning("**IBKR Connection**\n⚠️ Not connected")
     
     with status_col3:
         st.info("**Data Sources**\n✅ Yahoo Finance ready")
@@ -193,25 +207,19 @@ if "🏠 Home" in page:
     
     logger.info("Dashboard home page loaded")
 
-elif "📊 Market Overview" in page:
+elif "Market Overview" in page:
     market_overview.render()
 
-elif "🔍 Stock Scanner" in page:
+elif "Stock Scanner" in page:
     scanner.render()
 
-elif "📈 Live Monitoring" in page:
-    st.title("📈 Live Monitoring")
-    st.info("**Coming Soon**: Real-time signal monitoring and position tracking")
-    st.markdown("""
-    This page will show:
-    - Active watchlist
-    - Current positions
-    - Live signals
-    - Real-time P&L
-    - Active alerts
-    """)
+elif "ATR Analysis" in page:
+    atr_analysis.render()
 
-elif "⚙️ Strategy Manager" in page:
+elif "Live Monitoring" in page:
+    live_monitoring.render()
+
+elif "Strategy Manager" in page:
     st.title("⚙️ Strategy Manager")
     st.info("**Coming Soon**: Enable/disable strategies and configure parameters")
     
@@ -225,13 +233,13 @@ elif "⚙️ Strategy Manager" in page:
         with col2:
             st.checkbox("Enable", key=f"enable_{strategy}", disabled=True)
 
-elif "💼 Portfolio" in page:
+elif "Portfolio" in page:
     portfolio.render()
 
-elif "📉 Backtesting" in page:
+elif "Backtesting" in page:
     backtesting.render()
 
-elif "🤖 AI Insights" in page:
+elif "AI Insights" in page:
     st.title("🤖 AI Insights")
     st.info("**Coming in Phase 5**: LLM-powered trade narratives and insights")
     st.markdown("""
@@ -243,7 +251,7 @@ elif "🤖 AI Insights" in page:
     - Strategy suggestions
     """)
 
-elif "⚙️ Configuration" in page:
+elif "Configuration" in page:
     st.title("⚙️ Configuration")
     
     tab1, tab2, tab3 = st.tabs(["IBKR Connection", "Risk Settings", "Data Sources"])
@@ -259,8 +267,48 @@ elif "⚙️ Configuration" in page:
         
         st.info("To change settings, edit the .env file and restart the dashboard")
         
-        if st.button("Test Connection"):
-            st.warning("Connection testing will be implemented in Phase 2")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Test Connection", type="primary"):
+                with st.spinner("Testing IBKR connection..."):
+                    try:
+                        if ibkr.connect_with_retry():
+                            st.session_state.ibkr_connected = True
+                            st.success("✅ Successfully connected to IBKR!")
+                            
+                            # Get account info
+                            if ibkr.ib and ibkr.ib.isConnected():
+                                accounts = ibkr.ib.managedAccounts()
+                                st.info(f"Connected to accounts: {', '.join(accounts)}")
+                        else:
+                            st.error("❌ Failed to connect to IBKR. Check the logs for details.")
+                            st.warning("""
+                            **Troubleshooting:**
+                            1. Make sure IBKR Gateway/TWS is running
+                            2. Check that API connections are enabled in IBKR settings
+                            3. Verify the port (4002 for paper, 4001/7496 for live)
+                            4. Ensure no other client is using the same Client ID
+                            """)
+                    except Exception as e:
+                        st.error(f"❌ Connection error: {str(e)}")
+                        logger.error(f"IBKR connection test failed: {e}", exc_info=True)
+        
+        with col2:
+            if st.button("Disconnect"):
+                if ibkr.is_connected():
+                    ibkr.disconnect()
+                    st.session_state.ibkr_connected = False
+                    st.success("Disconnected from IBKR")
+                else:
+                    st.info("Not currently connected")
+        
+        # Show current connection status
+        st.markdown("---")
+        st.subheader("Connection Status")
+        if st.session_state.ibkr_connected and ibkr.is_connected():
+            st.success("🟢 Connected to IBKR")
+        else:
+            st.warning("🔴 Not connected")
     
     with tab2:
         st.subheader("Risk Management Settings")

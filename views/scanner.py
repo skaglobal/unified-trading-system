@@ -127,7 +127,7 @@ def run_momentum_scan(min_gain: float, min_volume: int):
         if results:
             st.success(f"Found {len(results)} stocks matching criteria")
             df = pd.DataFrame(results)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width='stretch')
         else:
             st.warning("No stocks found matching criteria. Try adjusting filters.")
 
@@ -192,7 +192,7 @@ def run_rsi_scan(scan_mode: str):
         if results:
             st.success(f"Found {len(results)} stocks with RSI extremes")
             df = pd.DataFrame(results)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width='stretch')
         else:
             st.warning("No stocks found with RSI extremes.")
 
@@ -245,6 +245,6 @@ def run_volume_scan(volume_multiplier: float):
         if results:
             st.success(f"Found {len(results)} stocks with volume surges")
             df = pd.DataFrame(results).sort_values('Volume Ratio', ascending=False)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width='stretch')
         else:
             st.warning("No stocks found with volume surges.")

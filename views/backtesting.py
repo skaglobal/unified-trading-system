@@ -195,7 +195,7 @@ def run_backtest(strategy_name: str, symbols_str: str, start_date, end_date, ini
                     hovermode='x unified'
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             
             # Trade list
             if result.trades:
@@ -230,7 +230,7 @@ def run_backtest(strategy_name: str, symbols_str: str, start_date, end_date, ini
                             pass
                     return ['' for _ in val]
                 
-                st.dataframe(trades_df, use_container_width=True)
+                st.dataframe(trades_df, width='stretch')
                 
                 # Download button
                 csv = trades_df.to_csv(index=False)

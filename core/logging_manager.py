@@ -105,6 +105,25 @@ class LoggingManager:
             logger = logging.getLogger(name)
             self._loggers[name] = logger
         return self._loggers[name]
+
+    # ---- Proxy methods so LoggingManager can be used directly as a logger ----
+    def _default_logger(self) -> logging.Logger:
+        return self.get_logger(self.app_name)
+
+    def debug(self, msg: str, *args, **kwargs):
+        self._default_logger().debug(msg, *args, **kwargs)
+
+    def info(self, msg: str, *args, **kwargs):
+        self._default_logger().info(msg, *args, **kwargs)
+
+    def warning(self, msg: str, *args, **kwargs):
+        self._default_logger().warning(msg, *args, **kwargs)
+
+    def error(self, msg: str, *args, **kwargs):
+        self._default_logger().error(msg, *args, **kwargs)
+
+    def critical(self, msg: str, *args, **kwargs):
+        self._default_logger().critical(msg, *args, **kwargs)
     
     def log_trade(
         self,

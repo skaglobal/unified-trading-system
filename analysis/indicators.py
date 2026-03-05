@@ -451,32 +451,65 @@ class TechnicalIndicators:
 
 _indicator_instance = TechnicalIndicators()
 
+_COL_MAP = {
+    'open': 'Open', 'high': 'High', 'low': 'Low',
+    'close': 'Close', 'volume': 'Volume', 'date': 'Date',
+}
+_COL_MAP_REVERSE = {v: k for k, v in _COL_MAP.items()}
+
+
+def _normalize_cols(df: pd.DataFrame) -> tuple:
+    """Temporarily uppercase OHLCV columns so TechnicalIndicators works.
+    Returns (normalized_df, {renamed_cols}) where renamed_cols maps new→old."""
+    renames = {k: v for k, v in _COL_MAP.items() if k in df.columns}
+    if renames:
+        df = df.rename(columns=renames)
+    return df, renames
+
+
+def _restore_cols(df: pd.DataFrame, renames: dict) -> pd.DataFrame:
+    """Restore lowercase column names after indicator calculation."""
+    reverse = {v: k for k, v in renames.items()}
+    return df.rename(columns=reverse)
+
 
 def calculate_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     """Calculate RSI indicator."""
-    return _indicator_instance.add_rsi(df, period)
+    df, renames = _normalize_cols(df)
+    result = _indicator_instance.add_rsi(df, period)
+    return _restore_cols(result, renames)
 
 
 def calculate_sma(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
     """Calculate Simple Moving Average."""
-    return _indicator_instance.add_moving_averages(df, sma_periods=[period])
+    df, renames = _normalize_cols(df)
+    result = _indicator_instance.add_moving_averages(df, sma_periods=[period])
+    return _restore_cols(result, renames)
 
 
 def calculate_ema(df: pd.DataFrame, period: int = 12) -> pd.DataFrame:
     """Calculate Exponential Moving Average."""
-    return _indicator_instance.add_moving_averages(df, ema_periods=[period])
+    df, renames = _normalize_cols(df)
+    result = _indicator_instance.add_moving_averages(df, ema_periods=[period])
+    return _restore_cols(result, renames)
 
 
 def calculate_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
     """Calculate MACD indicator."""
-    return _indicator_instance.add_macd(df, fast, slow, signal)
+    df, renames = _normalize_cols(df)
+    result = _indicator_instance.add_macd(df, fast, slow, signal)
+    return _restore_cols(result, renames)
 
 
 def calculate_bollinger_bands(df: pd.DataFrame, period: int = 20, std_dev: float = 2.0) -> pd.DataFrame:
     """Calculate Bollinger Bands."""
-    return _indicator_instance.add_bollinger_bands(df, period, std_dev)
+    df, renames = _normalize_cols(df)
+    result = _indicator_instance.add_bollinger_bands(df, period, std_dev)
+    return _restore_cols(result, renames)
 
 
 def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     """Calculate Average True Range."""
-    return _indicator_instance.add_atr(df, period)
+    df, renames = _normalize_cols(df)
+    result = _indicator_instance.add_atr(df, period)
+    return _restore_cols(result, renames)

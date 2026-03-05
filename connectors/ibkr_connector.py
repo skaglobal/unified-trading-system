@@ -68,25 +68,42 @@ class IBKRConnector:
         self._loop = self._setup_event_loop()
         
     def _setup_event_loop(self) -> asyncio.AbstractEventLoop:
-        """Set up event loop compatible with Python 3.10+."""
-        if sys.version_info >= (3, 10):
-            # Get or create event loop
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            return loop
-        else:
-            return asyncio.get_event_loop()
-    
-    def _run_async(self, coro):
-        """Execute an async coroutine."""
+        """Set up event loop for the current thread.
+
+        uvloop (if installed) raises RuntimeError from get_event_loop() on
+        non-main threads that have no loop yet.  We bypass that by always
+        calling asyncio.new_event_loop() / set_event_loop() when needed.
+        """
         try:
-            return self._loop.run_until_complete(coro)
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("closed")
+            return loop
         except RuntimeError:
-            # If we're already in an async context, just await
-            return asyncio.run(coro)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
+
+    def _run_async(self, coro):
+        """Execute an async coroutine.
+
+        Streamlit re-runs scripts in a fresh ScriptRunner.scriptThread on every
+        interaction.  self._loop was created in a *different* thread so we must
+        get/create the event loop for the *current* thread each time.  This is
+        especially important when uvloop is installed as the event loop policy,
+        because uvloop's get_event_loop() raises RuntimeError on threads with no
+        loop set (unlike the default asyncio policy which auto-creates one).
+        """
+        # Get or create an event loop for the current thread.
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("closed")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        self._loop = loop
+        return loop.run_until_complete(coro)
     
     # ==================== Connection Management ====================
     

@@ -93,7 +93,7 @@ def render():
                     xaxis_rangeslider_visible=False
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No data available")
         except Exception as e:
@@ -196,7 +196,7 @@ def render():
                 showlegend=False
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No sector data available")
             

@@ -19,6 +19,8 @@ class IBKRConfig(BaseModel):
     readonly: bool = False
     account: Optional[str] = None
     timeout: int = 30
+    reconnect_attempts: int = 3
+    reconnect_delay: int = 5
 
 
 class TradingConfig(BaseModel):

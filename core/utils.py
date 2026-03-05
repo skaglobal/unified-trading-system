@@ -114,14 +114,15 @@ def validate_symbol(symbol: str) -> bool:
 class RateLimiter:
     """Simple rate limiter for API calls"""
     
-    def __init__(self, max_calls: int, time_window: float):
+    def __init__(self, max_calls: int, time_window: float = None, period: float = None):
         """
         Args:
             max_calls: Maximum calls allowed
-            time_window: Time window in seconds
+            time_window: Time window in seconds (alias: period)
+            period: Time window in seconds (alias: time_window)
         """
         self.max_calls = max_calls
-        self.time_window = time_window
+        self.time_window = time_window or period or 60.0
         self.calls = []
     
     def is_allowed(self) -> bool:
@@ -139,11 +140,24 @@ class RateLimiter:
         
         return False
     
+    def wait_if_needed(self):
+        """Wait until a call is allowed, then record it"""
+        import time as _time
+        while not self.is_allowed():
+            wait = self.wait_time()
+            if wait > 0:
+                _time.sleep(wait)
+    
     def wait_time(self) -> float:
         """Get seconds to wait before next call is allowed"""
+        now = datetime.now().timestamp()
+        
+        # Remove old calls outside time window
+        self.calls = [call_time for call_time in self.calls 
+                     if now - call_time < self.time_window]
+        
         if len(self.calls) < self.max_calls:
             return 0.0
         
-        now = datetime.now().timestamp()
         oldest_call = self.calls[0]
         return max(0.0, self.time_window - (now - oldest_call))

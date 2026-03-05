@@ -150,9 +150,14 @@ class BacktestEngine:
         all_dates = set()
         for df in data.values():
             if 'date' in df.columns:
-                all_dates.update(df['date'].values)
+                # Normalize to timezone-naive dates
+                dates = pd.to_datetime(df['date'])
+                if hasattr(dates.dtype, 'tz') and dates.dtype.tz is not None:
+                    dates = dates.dt.tz_convert(None)
+                all_dates.update(dates.values)
             elif df.index.name == 'date' or isinstance(df.index, pd.DatetimeIndex):
-                all_dates.update(df.index.values)
+                idx = df.index.tz_localize(None) if df.index.tz is not None else df.index
+                all_dates.update(idx.values)
         
         if not all_dates:
             logger.error("No dates found in data")
@@ -182,10 +187,15 @@ class BacktestEngine:
             current_data = {}
             for symbol, df in data.items():
                 if 'date' in df.columns:
-                    mask = df['date'] <= current_date
+                    # Normalize date column to timezone-naive for comparison
+                    date_col = pd.to_datetime(df['date'])
+                    if hasattr(date_col.dtype, 'tz') and date_col.dtype.tz is not None:
+                        date_col = date_col.dt.tz_convert(None)
+                    mask = date_col <= current_date
                     current_data[symbol] = df[mask].copy()
                 elif isinstance(df.index, pd.DatetimeIndex):
-                    mask = df.index <= current_date
+                    idx = df.index.tz_localize(None) if df.index.tz is not None else df.index
+                    mask = idx <= current_date
                     current_data[symbol] = df[mask].copy()
             
             # Check stops and targets on existing positions
