@@ -3,13 +3,9 @@
 universes:
   default:
     # Large cap tech stocks
-    - AAPL
-    - MSFT
-    - GOOGL
-    - AMZN
-    - META
-    - NVDA
-    - TSLA
+    - LITE
+    - MU
+    - SNDK
     
   sp500_liquid:
     # Highly liquid S&P 500 stocks

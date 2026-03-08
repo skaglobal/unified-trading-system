@@ -19,7 +19,7 @@ st.set_page_config(
     page_title="Unified Trading System",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Initialize managers
@@ -31,14 +31,38 @@ logging_mgr = get_logging_manager(
 )
 logger = get_logger("dashboard.main")
 
-# Initialize IBKR connector (once per session)
+@st.cache_resource
+def _create_ibkr_singleton():
+    """Create a single shared IBKRConnector for the whole server process.
+    @st.cache_resource is thread-safe: even if Streamlit runs two script
+    threads simultaneously on first load, only one call executes the body.
+    """
+    _config = get_config_manager()
+    _logging_mgr = get_logging_manager(
+        log_level=_config.config.log_level,
+        log_to_console=_config.config.log_to_console,
+        log_to_file=_config.config.log_to_file,
+    )
+    _connector = IBKRConnector(config=_config, logger=_logging_mgr)
+    _log = get_logger("dashboard.main")
+    try:
+        connected = _connector.connect()
+        if connected:
+            _log.info("Auto-connected to IBKR on startup")
+        else:
+            _log.info("IBKR auto-connect skipped or failed — Gateway may not be running")
+    except Exception as _e:
+        _log.warning(f"IBKR auto-connect error: {_e}")
+    return _connector
+
+# Bind shared connector to session state (no duplicate connect — singleton cached above)
 if 'ibkr' not in st.session_state:
-    st.session_state.ibkr = IBKRConnector(config=config, logger=logging_mgr)
-    st.session_state.ibkr_connected = False
+    st.session_state.ibkr = _create_ibkr_singleton()
+    st.session_state.ibkr_connected = st.session_state.ibkr.is_connected()
 
 ibkr = st.session_state.ibkr
 
-# Custom CSS
+# Custom CSS + sidebar toggle button
 st.markdown("""
 <style>
     .main-header {
@@ -61,7 +85,45 @@ st.markdown("""
         background-color: #f8d7da;
         border: 2px solid #dc3545;
     }
+    /* Floating sidebar toggle button */
+    #sidebar-toggle-btn {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        z-index: 99999;
+        background: #1f2937;
+        color: #ffffff;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 1.1rem;
+        cursor: pointer;
+        line-height: 1;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        transition: background 0.2s;
+    }
+    #sidebar-toggle-btn:hover {
+        background: #374151;
+    }
 </style>
+<button id="sidebar-toggle-btn" title="Toggle sidebar">&#9776;</button>
+<script>
+(function() {
+    // Click Streamlit's own collapse/expand button on behalf of the user
+    function toggleSidebar() {
+        var btn = window.parent.document.querySelector(
+            'button[kind="header"][data-testid="collapsedControl"], '
+            + 'button[data-testid="collapsedControl"]'
+        );
+        if (!btn) {
+            // Fallback: look for the chevron button inside the sidebar header
+            btn = window.parent.document.querySelector('section[data-testid="stSidebar"] button');
+        }
+        if (btn) { btn.click(); }
+    }
+    document.getElementById('sidebar-toggle-btn').addEventListener('click', toggleSidebar);
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # Sidebar
@@ -85,6 +147,7 @@ with st.sidebar:
             "🔍 Stock Scanner",
             "📐 ATR Analysis",
             "📈 Live Monitoring",
+            "🖥️ Live Dashboard",
             "⚙️ Strategy Manager",
             "💼 Portfolio",
             "📉 Backtesting",
@@ -109,7 +172,7 @@ with st.sidebar:
     st.caption("Phase 1: Foundation")
 
 # Import page modules
-from views import market_overview, scanner, backtesting, portfolio, atr_analysis, live_monitoring
+from views import market_overview, scanner, backtesting, portfolio, atr_analysis, live_monitoring, live_dashboard
 
 # Main content area
 if "Home" in page:
@@ -218,6 +281,9 @@ elif "ATR Analysis" in page:
 
 elif "Live Monitoring" in page:
     live_monitoring.render()
+
+elif "Live Dashboard" in page:
+    live_dashboard.render()
 
 elif "Strategy Manager" in page:
     st.title("⚙️ Strategy Manager")

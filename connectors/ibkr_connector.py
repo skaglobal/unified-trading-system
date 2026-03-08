@@ -6,6 +6,7 @@ Combines best practices from multiple implementations with Python 3.11+ compatib
 
 import asyncio
 import sys
+import threading
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -64,80 +65,117 @@ class IBKRConnector:
         self._connected = False
         self._connection_mode = "PAPER" if self.port == 7497 else "LIVE"
         
-        # Event loop setup for Python 3.10+
-        self._loop = self._setup_event_loop()
+        # Persistent background event loop — stays running forever so that
+        # run_coroutine_threadsafe() works from any thread (Streamlit, etc.)
+        self._loop = self._start_background_loop()
+
+        # Persistent market-data subscriptions: sym -> ib_insync Ticker
+        # Kept alive between calls so data streams continuously.
+        self._live_subs: Dict[str, Any] = {}
+        self._live_contracts: Dict[str, Any] = {}  # sym -> qualified Contract
         
-    def _setup_event_loop(self) -> asyncio.AbstractEventLoop:
-        """Set up event loop for the current thread.
+    def _start_background_loop(self) -> asyncio.AbstractEventLoop:
+        """Create a new asyncio event loop and run it forever in a daemon thread.
 
-        uvloop (if installed) raises RuntimeError from get_event_loop() on
-        non-main threads that have no loop yet.  We bypass that by always
-        calling asyncio.new_event_loop() / set_event_loop() when needed.
+        This is the correct pattern for using ib_insync from synchronous /
+        multi-threaded code (e.g. Streamlit).  The loop stays alive for the
+        lifetime of the process, so:
+          - asyncio.run_coroutine_threadsafe(coro, self._loop) always succeeds
+          - ib_insync's reader tasks keep running between calls
+          - loop.is_running() is always True
         """
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                raise RuntimeError("closed")
-            return loop
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
+        loop = asyncio.new_event_loop()
+
+        def _run():
             asyncio.set_event_loop(loop)
-            return loop
+            loop.run_forever()
 
-    def _run_async(self, coro):
-        """Execute an async coroutine.
+        t = threading.Thread(target=_run, name="ibkr-event-loop", daemon=True)
+        t.start()
+        return loop
 
-        Streamlit re-runs scripts in a fresh ScriptRunner.scriptThread on every
-        interaction.  self._loop was created in a *different* thread so we must
-        get/create the event loop for the *current* thread each time.  This is
-        especially important when uvloop is installed as the event loop policy,
-        because uvloop's get_event_loop() raises RuntimeError on threads with no
-        loop set (unlike the default asyncio policy which auto-creates one).
+    def _run_async(self, coro, timeout: float = 30):
+        """Submit a coroutine to the persistent background loop and block until done.
+
+        Safe to call from any thread — the coroutine always executes on the
+        dedicated ibkr-event-loop thread, which is always running.
         """
-        # Get or create an event loop for the current thread.
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                raise RuntimeError("closed")
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        self._loop = loop
-        return loop.run_until_complete(coro)
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return future.result(timeout=timeout)
     
     # ==================== Connection Management ====================
     
     async def _connect_async(self) -> bool:
-        """Internal async connect method."""
-        try:
-            self.ib = IB()
-            await self.ib.connectAsync(
-                self.host,
-                self.port,
-                clientId=self.client_id,
-                timeout=0  # Disable internal timeout for Python 3.14+ compatibility
-            )
-            
-            if self.ib.isConnected():
+        """Internal async connect method.
+
+        Automatically retries with clientId+1 .. clientId+4 if Gateway rejects
+        the initial clientId with Error 326 (already in use).  This handles the
+        hot-reload / rapid-restart scenario where the previous connection is still
+        registered in Gateway for a brief period.
+
+        Strategy:
+          1. connectAsync() — Gateway accepts the TCP connection immediately.
+          2. Wait 0.5 s — gives Gateway time to send Error 326 and drop the link.
+          3. Check isConnected() — if False, the clientId was rejected; try next.
+          4. Repeat for up to MAX_CID_ATTEMPTS sequential clientIds.
+        """
+        MAX_CID_ATTEMPTS = 5  # will try base, base+1, ..., base+4
+
+        for offset in range(MAX_CID_ATTEMPTS):
+            client_id = self.client_id + offset
+            try:
+                # Clean up any previous IB object before each attempt.
+                if self.ib is not None:
+                    try:
+                        self.ib.disconnect()
+                    except Exception:
+                        pass
+                self.ib = IB()
+
+                await self.ib.connectAsync(
+                    self.host,
+                    self.port,
+                    clientId=client_id,
+                    timeout=0,  # Disable internal timeout for Python 3.14+ compatibility
+                )
+
+                # Brief pause so Gateway can send Error 326 if clientId is taken.
+                await asyncio.sleep(0.5)
+
+                if not self.ib.isConnected():
+                    next_id = client_id + 1
+                    self.logger.warning(
+                        f"clientId {client_id} rejected by Gateway (likely in use). "
+                        f"Retrying with clientId {next_id}..."
+                    )
+                    continue
+
+                # Successfully connected.
                 self._connected = True
-                
-                # Get account info
                 accounts = self.ib.managedAccounts()
                 self.logger.info(
-                    f"✓ Connected to IBKR {self._connection_mode}",
+                    f"✓ Connected to IBKR {self._connection_mode} (clientId={client_id})",
                     extra={
                         "host": self.host,
                         "port": self.port,
                         "accounts": accounts,
-                        "mode": self._connection_mode
-                    }
+                        "mode": self._connection_mode,
+                        "client_id": client_id,
+                    },
                 )
                 return True
-            return False
-            
-        except Exception as e:
-            self.logger.error(f"IBKR connection failed: {e}", exc_info=True)
-            return False
+
+            except Exception as e:
+                self.logger.error(
+                    f"IBKR connection attempt failed (clientId={client_id}): {e}",
+                    exc_info=True,
+                )
+
+        self.logger.error(
+            f"Could not connect to IBKR after {MAX_CID_ATTEMPTS} clientId attempts "
+            f"({self.client_id}–{self.client_id + MAX_CID_ATTEMPTS - 1})"
+        )
+        return False
     
     def connect(self) -> bool:
         """
@@ -176,6 +214,14 @@ class IBKRConnector:
     def disconnect(self):
         """Disconnect from IBKR."""
         if self.ib and self.ib.isConnected():
+            # Cancel all persistent market-data subscriptions before disconnecting.
+            for sym, contract in list(self._live_contracts.items()):
+                try:
+                    self.ib.cancelMktData(contract)
+                except Exception:
+                    pass
+            self._live_subs.clear()
+            self._live_contracts.clear()
             self.ib.disconnect()
             self._connected = False
             self.logger.info("Disconnected from IBKR")
@@ -310,36 +356,180 @@ class IBKRConnector:
             self.logger.error(f"Error qualifying contract {contract.symbol}: {e}")
             return None
     
+    def get_live_quotes(self, symbols: List[str], wait_secs: float = 2.0) -> Dict[str, Dict]:
+        """
+        Fetch live tick data for multiple symbols simultaneously via reqMktData.
+
+        Mirrors the TickerMonitor approach from the live dashboard.
+        Returns bid, ask, last, high, low, open, close, volume, change_pct, spread
+        for each symbol.  Falls back gracefully to empty dict on any error.
+
+        Thread-safe: submits the async work to ib_insync's own background event loop
+        via run_coroutine_threadsafe so this can be called from Streamlit's
+        ScriptRunner.scriptThread without needing a local event loop.
+
+        Args:
+            symbols: List of ticker symbols.
+            wait_secs: Seconds to wait for tick data to arrive (default 2).
+
+        Returns:
+            Dict mapping symbol -> data dict. Keys present even on failure (empty values).
+        """
+        if not self.is_connected() or not symbols:
+            return {s: {} for s in symbols}
+
+        # self._loop is the persistent background event loop (always running).
+        # run_coroutine_threadsafe is safe from any thread.
+        future = asyncio.run_coroutine_threadsafe(
+            self._async_get_live_quotes(symbols, wait_secs), self._loop
+        )
+        try:
+            return future.result(timeout=wait_secs + 10)
+        except Exception as e:
+            self.logger.error(f"get_live_quotes failed: {e}", exc_info=True)
+            return {s: {} for s in symbols}
+
+    async def _async_get_live_quotes(self, symbols: List[str], wait_secs: float) -> Dict[str, Dict]:
+        """Async implementation of get_live_quotes — runs on ib_insync's persistent loop.
+
+        Keeps market-data subscriptions alive between calls (streaming model).
+        Only new symbols are qualified (in parallel) and subscribed; existing
+        subscriptions are reused.  Symbols no longer in `symbols` are cancelled.
+        """
+        import math
+
+        symbols_set = set(symbols)
+        new_syms    = [s for s in symbols if s not in self._live_subs]
+        gone_syms   = [s for s in list(self._live_subs) if s not in symbols_set]
+
+        # ── Cancel subscriptions for removed symbols ──────────────────────────
+        for sym in gone_syms:
+            try:
+                self.ib.cancelMktData(self._live_contracts[sym])
+            except Exception:
+                pass
+            self._live_subs.pop(sym, None)
+            self._live_contracts.pop(sym, None)
+
+        # ── Qualify NEW symbols in parallel ───────────────────────────────────
+        if new_syms:
+            async def _qualify_one(sym: str):
+                try:
+                    contract = self._create_contract(sym)
+                    qualified = await self.ib.qualifyContractsAsync(contract)
+                    if qualified:
+                        return sym, qualified[0]
+                except Exception as e:
+                    self.logger.warning(f"Could not qualify {sym}: {e}")
+                return sym, None
+
+            results = await asyncio.gather(*[_qualify_one(s) for s in new_syms])
+            for sym, qc in results:
+                if qc is not None:
+                    self._live_contracts[sym] = qc
+                    self._live_subs[sym] = self.ib.reqMktData(qc, "", False, False)
+
+            # Wait for the first batch of tick data to arrive.
+            await asyncio.sleep(wait_secs)
+
+        # ── Read current values for all active subscriptions ──────────────────
+        def _val(v):
+            try:
+                f = float(v)
+                return None if (math.isnan(f) or f == 0.0) else f
+            except (TypeError, ValueError):
+                return None
+
+        result: Dict[str, Dict] = {}
+        for sym in symbols:
+            ticker = self._live_subs.get(sym)
+            if ticker is None:
+                result[sym] = {}
+                continue
+
+            last  = _val(ticker.last)
+            bid   = _val(ticker.bid)
+            ask   = _val(ticker.ask)
+            high  = _val(ticker.high)
+            low   = _val(ticker.low)
+            open_ = _val(ticker.open)
+            close = _val(ticker.close)
+
+            try:
+                vol = int(ticker.volume) if ticker.volume and not math.isnan(float(ticker.volume)) else None
+            except (TypeError, ValueError):
+                vol = None
+
+            change_pct = None
+            if last and close and close > 0:
+                change_pct = round((last - close) / close * 100, 2)
+
+            spread = spread_pct = None
+            if bid and ask and ask > bid:
+                spread     = round(ask - bid, 4)
+                spread_pct = round(spread / last * 100, 3) if last else None
+
+            result[sym] = {
+                "last":       last,
+                "bid":        bid,
+                "ask":        ask,
+                "high":       high,
+                "low":        low,
+                "open":       open_,
+                "close":      close,
+                "volume":     vol,
+                "change_pct": change_pct,
+                "spread":     spread,
+                "spread_pct": spread_pct,
+                "source":     "IBKR",
+            }
+
+        return result
+
     def get_current_price(self, symbol: str) -> Optional[float]:
         """
         Get current market price for a symbol.
-        
+
+        Submits to ib_insync's background event loop so it is safe to call
+        from any thread (including Streamlit's ScriptRunner thread).
+
         Args:
             symbol: Stock ticker symbol
-            
+
         Returns:
             Current price or None if unavailable
         """
         if not self.is_connected():
             return None
-        
+
+        # self._loop is always running — safe from any thread.
         try:
-            contract = self._create_contract(symbol)
-            contract = self._run_async(self._qualify_contract_async(contract))
-            
-            if not contract:
-                return None
-            
-            ticker = self.ib.reqMktData(contract, '', False, False)
-            self.ib.sleep(1)  # Wait for data to arrive
-            
-            price = ticker.marketPrice()
-            self.ib.cancelMktData(contract)
-            
-            return float(price) if price and price > 0 else None
-            
+            future = asyncio.run_coroutine_threadsafe(
+                self._async_get_current_price(symbol), self._loop
+            )
+            return future.result(timeout=10)
         except Exception as e:
             self.logger.error(f"Error getting price for {symbol}: {e}")
+            return None
+
+    async def _async_get_current_price(self, symbol: str) -> Optional[float]:
+        """Async impl of get_current_price — must run on ib_insync's event loop."""
+        try:
+            contract = self._create_contract(symbol)
+            qualified = await self.ib.qualifyContractsAsync(contract)
+            if not qualified:
+                return None
+            contract = qualified[0]
+
+            ticker = self.ib.reqMktData(contract, "", False, False)
+            await asyncio.sleep(1)
+
+            price = ticker.marketPrice()
+            self.ib.cancelMktData(contract)
+
+            return float(price) if price and price > 0 else None
+        except Exception as e:
+            self.logger.error(f"_async_get_current_price({symbol}) error: {e}")
             return None
     
     async def _fetch_historical_async(

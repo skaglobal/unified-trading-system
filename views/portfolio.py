@@ -8,6 +8,7 @@ from datetime import datetime
 
 from core.logging_manager import get_logger
 from core.config_manager import get_config_manager
+from connectors.ibkr_connector import IBKRConnector
 
 logger = get_logger("dashboard.portfolio")
 
@@ -25,36 +26,35 @@ def render():
     
     st.markdown("---")
     
-    # Connect to IBKR  
+    # Use the shared IBKR connector from session state (never create a new one
+    # here — that would conflict on the same clientId and cause Error 326).
+    ibkr: IBKRConnector | None = st.session_state.get("ibkr")
+    
+    if ibkr is None or not ibkr.is_connected():
+        st.warning(
+            "⚠️ IBKR not connected. Use the **Configuration** page or the "
+            "connect button in **Live Monitoring** to establish a connection."
+        )
+        display_mock_portfolio()
+        return
+
     try:
-        # Lazy import to avoid event loop issues
-        from connectors.ibkr_connector import IBKRConnector
+        st.success("✅ Connected to IBKR")
         
-        with st.spinner("Connecting to IBKR..."):
-            ibkr = IBKRConnector()
-            
-            if ibkr.connect():
-                st.success("✅ Connected to IBKR")
-                
-                # Get positions
-                positions = ibkr.get_positions()
-                
-                if positions:
-                    display_positions(positions, ibkr)
-                else:
-                    st.info("No open positions")
-                
-                # Account summary
-                display_account_summary(ibkr)
-                
-                ibkr.disconnect()
-            else:
-                st.error("❌ Failed to connect to IBKR")
-                st.info("Make sure TWS/Gateway is running and configured correctly")
-                display_mock_portfolio()
-                
+        # Get positions
+        positions = ibkr.get_positions()
+        
+        if positions:
+            display_positions(positions, ibkr)
+        else:
+            st.info("No open positions")
+        
+        # Account summary
+        display_account_summary(ibkr)
+        # Note: do NOT disconnect — ibkr is the shared singleton
+
     except Exception as e:
-        st.error(f"Connection error: {e}")
+        st.error(f"Error loading portfolio: {e}")
         logger.error(f"Portfolio page error: {e}")
         st.info("Displaying example portfolio layout")
         display_mock_portfolio()
