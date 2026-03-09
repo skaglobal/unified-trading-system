@@ -172,7 +172,7 @@ with st.sidebar:
     st.caption("Phase 1: Foundation")
 
 # Import page modules
-from views import market_overview, scanner, backtesting, portfolio, atr_analysis, live_monitoring, live_dashboard
+from views import market_overview, scanner, backtesting, portfolio, atr_analysis, live_monitoring, live_dashboard, ai_insights
 
 # Main content area
 if "Home" in page:
@@ -306,16 +306,7 @@ elif "Backtesting" in page:
     backtesting.render()
 
 elif "AI Insights" in page:
-    st.title("🤖 AI Insights")
-    st.info("**Coming in Phase 5**: LLM-powered trade narratives and insights")
-    st.markdown("""
-    This page will show:
-    - AI-generated trade explanations
-    - Pattern recognition insights
-    - Risk warnings
-    - Market commentary
-    - Strategy suggestions
-    """)
+    ai_insights.render()
 
 elif "Configuration" in page:
     st.title("⚙️ Configuration")
