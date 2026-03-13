@@ -1,0 +1,190 @@
+# ============================================================
+# Intraday Scoring Engine Configuration
+# ============================================================
+# Weights are relative; they are normalised per directional
+# pool so the provider can swap them without changing code.
+#
+# EDUCATIONAL / DECISION-SUPPORT TOOL — NOT GUARANTEED PREDICTION
+# ============================================================
+
+scoring:
+  # ── Trend ─────────────────────────────────────────────────
+  price_above_vwap:
+    weight: 2.0
+    side: long
+    description: "Price above intraday VWAP"
+  price_below_vwap:
+    weight: 2.0
+    side: short
+    description: "Price below intraday VWAP"
+
+  sma20_above_sma50:
+    weight: 1.5
+    side: long
+    description: "SMA20 > SMA50 (short-term uptrend)"
+  sma20_below_sma50:
+    weight: 1.5
+    side: short
+    description: "SMA20 < SMA50 (short-term downtrend)"
+
+  sma50_slope_positive:
+    weight: 1.2
+    side: long
+    description: "SMA50 slope rising over last 5 bars"
+  sma50_slope_negative:
+    weight: 1.2
+    side: short
+    description: "SMA50 slope falling over last 5 bars"
+
+  price_above_sma20:
+    weight: 1.0
+    side: long
+    description: "Price above SMA20"
+  price_below_sma20:
+    weight: 1.0
+    side: short
+    description: "Price below SMA20"
+
+  price_above_sma50:
+    weight: 0.8
+    side: long
+    description: "Price above SMA50"
+  price_below_sma50:
+    weight: 0.8
+    side: short
+    description: "Price below SMA50"
+
+  # ── Momentum ───────────────────────────────────────────────
+  rsi_bullish_zone:
+    weight: 1.5
+    side: long
+    description: "RSI 55–72 (healthy bullish momentum)"
+  rsi_bearish_zone:
+    weight: 1.5
+    side: short
+    description: "RSI 28–45 (healthy bearish momentum)"
+
+  macd_bullish:
+    weight: 1.5
+    side: long
+    description: "MACD line > Signal line (upward crossover zone)"
+  macd_bearish:
+    weight: 1.5
+    side: short
+    description: "MACD line < Signal line (downward crossover zone)"
+
+  macd_hist_rising:
+    weight: 0.8
+    side: long
+    description: "MACD histogram increasing (momentum building)"
+  macd_hist_falling:
+    weight: 0.8
+    side: short
+    description: "MACD histogram decreasing (momentum fading)"
+
+  # ── Volume ─────────────────────────────────────────────────
+  volume_spike:
+    weight: 1.5
+    side: both
+    description: "Relative volume > 1.5× average (elevated participation)"
+  volume_extreme:
+    weight: 2.0
+    side: both
+    description: "Relative volume > 2.5× average (institutional activity)"
+
+  # ── Order flow / microstructure ────────────────────────────
+  bid_ask_bullish:
+    weight: 1.8
+    side: long
+    description: "Bid size > Ask size (buying pressure at spread)"
+  bid_ask_bearish:
+    weight: 1.8
+    side: short
+    description: "Ask size > Bid size (selling pressure at spread)"
+
+  tight_spread:
+    weight: 0.4
+    side: both
+    description: "Tight bid-ask spread (liquid, efficient market)"
+
+  # ── Breakout / breakdown ───────────────────────────────────
+  breakout_above_resistance:
+    weight: 2.5
+    side: long
+    description: "Price broke above identified resistance level"
+  breakdown_below_support:
+    weight: 2.5
+    side: short
+    description: "Price broke below identified support level"
+
+  # ── Candle structure ───────────────────────────────────────
+  bullish_candle:
+    weight: 0.7
+    side: long
+    description: "Current 1-min candle closed bullish (close > open)"
+  bearish_candle:
+    weight: 0.7
+    side: short
+    description: "Current 1-min candle closed bearish (close < open)"
+
+  large_lower_wick_long:
+    weight: 0.6
+    side: long
+    description: "Large lower wick (buyers defended lows — bullish)"
+  large_upper_wick_short:
+    weight: 0.6
+    side: short
+    description: "Large upper wick (sellers rejected highs — bearish)"
+
+thresholds:
+  # If |long_score - short_score| < no_trade_gap → No Trade
+  no_trade_gap: 15
+
+  # Score thresholds for confidence labels
+  strong_threshold: 68
+  weak_threshold: 50
+
+  # Volume
+  vol_spike_ratio: 1.5
+  vol_extreme_ratio: 2.5
+
+  # RSI zones
+  rsi_bull_low: 55
+  rsi_bull_high: 72
+  rsi_bear_low: 28
+  rsi_bear_high: 45
+  rsi_overbought: 75
+  rsi_oversold: 25
+
+  # Bid-ask imbalance: fraction of one side required to count
+  imbalance_threshold: 0.60
+
+  # Support/resistance: within this fraction of price = "near"
+  sr_proximity_pct: 0.003
+
+  # Breakout confirmed when price exceeds S/R by this fraction
+  breakout_confirm_pct: 0.002
+
+  # Candle wick analysis
+  wick_ratio_threshold: 0.5
+
+  # SMA50 slope measured over N bars
+  sma50_slope_bars: 5
+
+  # ATR-based guidance multipliers
+  stop_atr_mult: 1.0
+  target1_atr_mult: 1.5
+  target2_atr_mult: 2.5
+
+alerts:
+  long_setup_min_score: 65
+  short_setup_min_score: 65
+  exit_warning_score_drop: 15
+  reversal_risk_gap: 20
+
+refresh:
+  poll_interval_secs: 5
+  candle_bar_size: "1 min"
+  intraday_duration: "1 D"
+  daily_duration: "250 D"
+  daily_bar_size: "1 day"

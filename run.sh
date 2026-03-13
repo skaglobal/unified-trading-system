@@ -36,7 +36,7 @@ fi
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
 # Get port from .env or use default
-PORT=${STREAMLIT_PORT:-8080}
+PORT=${STREAMLIT_PORT:-7070}
 
 # Determine local LAN IP (macOS: en0, fallback to en1, then hostname)
 LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")

@@ -148,6 +148,7 @@ with st.sidebar:
             "📐 ATR Analysis",
             "📈 Live Monitoring",
             "🖥️ Live Dashboard",
+            "⚡ Intraday Guidance",
             "⚙️ Strategy Manager",
             "💼 Portfolio",
             "📉 Backtesting",
@@ -172,7 +173,7 @@ with st.sidebar:
     st.caption("Phase 1: Foundation")
 
 # Import page modules
-from views import market_overview, scanner, backtesting, portfolio, atr_analysis, live_monitoring, live_dashboard, ai_insights
+from views import market_overview, scanner, backtesting, portfolio, atr_analysis, live_monitoring, live_dashboard, ai_insights, intraday_guidance
 
 # Main content area
 if "Home" in page:
@@ -284,6 +285,9 @@ elif "Live Monitoring" in page:
 
 elif "Live Dashboard" in page:
     live_dashboard.render()
+
+elif "Intraday Guidance" in page:
+    intraday_guidance.render()
 
 elif "Strategy Manager" in page:
     st.title("⚙️ Strategy Manager")
